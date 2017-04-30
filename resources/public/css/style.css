@@ -6,6 +6,7 @@ h1 {
     width: 14px;
     height: 14px;
     border: 1px solid lightgray;
+    border-radius: 2px;
     float: left;
 }
 

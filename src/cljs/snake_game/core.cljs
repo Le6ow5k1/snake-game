@@ -3,26 +3,55 @@
 
 (enable-console-print!)
 
-(defn cell [id color]
-  ^{:key id} [:div.board-cell {:style {:backgroundColor color}}])
+(def keycode->direction-map {37 :left
+                             38 :up
+                             39 :right
+                             40 :down})
 
-(defonce snake-state (r/atom {:direction "right"
-                              :body-coordinates #{[0 3] [1 3] [2 3] [2 4]}}))
+(defn cell [color]
+  [:div.board-cell {:style {:backgroundColor color}}])
 
-(defn snake-coordinates []
-  (@snake-state :body-coordinates))
+(defn snake-occupied? [snake-state x y]
+  (some #(= % [x y]) (@snake-state :body-coordinates)))
 
-(defn snake-occupied? [x y]
-  ((snake-coordinates) [x y]))
+(defn move-snake-head-to [[x y] direction]
+  (case direction
+    :up [x (dec y)]
+    :right [(inc x) y]
+    :down [x (inc y)]
+    :left [(dec x) y]))
+
+(defn snake-move-to [[head & _ :as all] direction]
+  (let [new-head (move-snake-head-to head direction)]
+    (->> all (into [new-head]) pop)))
+
+(defn snake-move [snake-state]
+  (let [direction (@snake-state :direction)]
+    (swap! snake-state update :body-coordinates snake-move-to direction)))
+
+(defn update-snake-state [state]
+  (fn []
+    (snake-move state)))
+
+(defn handle-keydown [snake-state]
+  (fn [event]
+    (let [key-code (.-keyCode event)
+          direction (keycode->direction-map key-code)]
+      (when direction
+        (swap! snake-state assoc :direction direction)))))
 
 (defn board-component [size]
-  [:div.board {:class (str "board-" size)}
-   (for [y (range size)
-         x (range size)
-         :let [id (str x y)
-               snake-cell? (snake-occupied? x y)
-               cell-color (if snake-cell? "black" "white")]]
-     [cell id cell-color])])
+  (let [snake-state (r/atom {:direction :right
+                             :body-coordinates [[2 4] [2 3] [1 3] [0 3]]})]
+    (js/setInterval (update-snake-state snake-state) 300)
+    (js/document.addEventListener "keydown" (handle-keydown snake-state))
+    (fn []
+      [:div.board {:class (str "board-" size)}
+       (doall (for [y (range size)
+                    x (range size)
+                    :let [snake-cell? (snake-occupied? snake-state x y)
+                          cell-color (if snake-cell? "black" "white")]]
+                ^{:key [x y]} [cell cell-color]))])))
 
 (defn board-20-component []
   (board-component 20))
