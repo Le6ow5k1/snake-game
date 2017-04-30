@@ -14,6 +14,26 @@
 (defn snake-occupied? [snake-state x y]
   (some #(= % [x y]) (@snake-state :body-coordinates)))
 
+(defn in-board? [x y board-size]
+  (and (>= x 0) (< x board-size)
+       (>= y 0) (< y board-size)))
+
+(defn generate-object-coordinates [board-size]
+  [(rand-int (dec board-size)) (rand-int (dec board-size))])
+
+(defn generate-board-objects [board-size]
+  (loop [meal-count 10
+         created-objects #{}]
+    (let [meal-coords (generate-object-coordinates board-size)
+          can-place-meal? (not (contains? created-objects meal-coords))]
+      (cond
+        (= 0 meal-count) created-objects
+        can-place-meal? (recur (dec meal-count) (into created-objects [meal-coords]))
+        :else (recur meal-count created-objects)))))
+
+(defn snake-grow-if-needed [snake-state]
+  )
+
 (defn move-snake-head-to [[x y] direction]
   (case direction
     :up [x (dec y)]
@@ -42,7 +62,8 @@
 
 (defn board-component [size]
   (let [snake-state (r/atom {:direction :right
-                             :body-coordinates [[2 4] [2 3] [1 3] [0 3]]})]
+                             :body-coordinates [[2 4] [2 3] [1 3] [0 3]]})
+        board-objects-coordinates (r/atom (generate-board-objects size))]
     (js/setInterval (update-snake-state snake-state) 300)
     (js/document.addEventListener "keydown" (handle-keydown snake-state))
     (fn []
@@ -50,7 +71,11 @@
        (doall (for [y (range size)
                     x (range size)
                     :let [snake-cell? (snake-occupied? snake-state x y)
-                          cell-color (if snake-cell? "black" "white")]]
+                          object-cell? (contains? @board-objects-coordinates [x y])
+                          cell-color (cond
+                                       snake-cell? "black"
+                                       object-cell? "green"
+                                       :else "white")]]
                 ^{:key [x y]} [cell cell-color]))])))
 
 (defn board-20-component []
