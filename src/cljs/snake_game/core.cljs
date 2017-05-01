@@ -41,17 +41,25 @@
     :down [x (inc y)]
     :left [(dec x) y]))
 
-(defn snake-move-to [[head & _ :as all] direction]
-  (let [new-head (move-snake-head-to head direction)]
-    (->> all (into [new-head]) pop)))
+(defn ensure-coord-within-board [coord board-size]
+  (cond
+    (>= coord board-size) 0
+    (< coord 0) (dec board-size)
+    :else coord))
 
-(defn snake-move [snake-state]
+(defn snake-move-to [[head & _ :as all] direction board-size]
+  (let [[x y] (move-snake-head-to head direction)
+        new-x (ensure-coord-within-board x board-size)
+        new-y (ensure-coord-within-board y board-size)]
+    (->> all (into [[new-x new-y]]) pop)))
+
+(defn snake-move [snake-state board-size]
   (let [direction (@snake-state :direction)]
-    (swap! snake-state update :body-coordinates snake-move-to direction)))
+    (swap! snake-state update :body-coordinates snake-move-to direction board-size)))
 
-(defn update-snake-state [state]
+(defn update-snake-state [state board-size]
   (fn []
-    (snake-move state)))
+    (snake-move state board-size)))
 
 (defn handle-keydown [snake-state]
   (fn [event]
@@ -64,7 +72,7 @@
   (let [snake-state (r/atom {:direction :right
                              :body-coordinates [[2 4] [2 3] [1 3] [0 3]]})
         board-objects-coordinates (r/atom (generate-board-objects size))]
-    (js/setInterval (update-snake-state snake-state) 300)
+    (js/setInterval (update-snake-state snake-state size) 300)
     (js/document.addEventListener "keydown" (handle-keydown snake-state))
     (fn []
       [:div.board {:class (str "board-" size)}

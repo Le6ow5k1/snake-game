@@ -5,8 +5,8 @@ h1 {
 .board-cell {
     width: 14px;
     height: 14px;
-    border: 1px solid lightgray;
-    border-radius: 2px;
+    border: 1px solid white;
+    border-radius: 3px;
     float: left;
 }
 
