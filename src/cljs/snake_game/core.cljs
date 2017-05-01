@@ -14,10 +14,6 @@
 (defn snake-occupied? [snake-state x y]
   (some #(= % [x y]) (@snake-state :body-coordinates)))
 
-(defn in-board? [x y board-size]
-  (and (>= x 0) (< x board-size)
-       (>= y 0) (< y board-size)))
-
 (defn generate-object-coordinates [board-size]
   [(rand-int (dec board-size)) (rand-int (dec board-size))])
 
@@ -30,9 +26,6 @@
         (= 0 meal-count) created-objects
         can-place-meal? (recur (dec meal-count) (into created-objects [meal-coords]))
         :else (recur meal-count created-objects)))))
-
-(defn snake-grow-if-needed [snake-state]
-  )
 
 (defn move-snake-head-to [[x y] direction]
   (case direction
@@ -57,9 +50,27 @@
   (let [direction (@snake-state :direction)]
     (swap! snake-state update :body-coordinates snake-move-to direction board-size)))
 
-(defn update-snake-state [state board-size]
+(defn snake-grow-to [[head & _ :as all] direction board-size]
+  (let [[x y] (move-snake-head-to head direction)
+        new-x (ensure-coord-within-board x board-size)
+        new-y (ensure-coord-within-board y board-size)]
+    (->> all (into [[new-x new-y]]))))
+
+(defn meal-in-front-of-snake [head meal-coordinates]
+  (some #(when (= head %) %) meal-coordinates))
+
+(defn snake-eat-meal [snake-state meal meal-coordinates board-size]
+  (let [direction (@snake-state :direction)]
+    (swap! snake-state update :body-coordinates snake-grow-to direction board-size)
+    (swap! meal-coordinates disj meal)))
+
+(defn update-snake-state [state objects-coordinates board-size]
   (fn []
-    (snake-move state board-size)))
+    (snake-move state board-size)
+    (let [[head & _] (@state :body-coordinates)
+          meal (meal-in-front-of-snake head @objects-coordinates)]
+      (when meal
+        (snake-eat-meal state meal objects-coordinates board-size)))))
 
 (defn handle-keydown [snake-state]
   (fn [event]
@@ -72,7 +83,7 @@
   (let [snake-state (r/atom {:direction :right
                              :body-coordinates [[2 4] [2 3] [1 3] [0 3]]})
         board-objects-coordinates (r/atom (generate-board-objects size))]
-    (js/setInterval (update-snake-state snake-state size) 300)
+    (js/setInterval (update-snake-state snake-state board-objects-coordinates size) 300)
     (js/document.addEventListener "keydown" (handle-keydown snake-state))
     (fn []
       [:div.board {:class (str "board-" size)}
