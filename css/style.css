@@ -11,7 +11,8 @@ h1 {
 }
 
 .board {
-    border: 1px solid lightgray;
+    border: 1px solid black;
+    margin: auto;
 }
 
 .board-10 {
