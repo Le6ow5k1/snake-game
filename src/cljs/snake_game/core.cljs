@@ -14,18 +14,25 @@
 (defn snake-occupied? [snake-state x y]
   (some #(= % [x y]) (@snake-state :body-coordinates)))
 
-(defn generate-object-coordinates [board-size]
+(defn- generate-object-coordinates [board-size]
   [(rand-int (dec board-size)) (rand-int (dec board-size))])
 
-(defn generate-board-objects [board-size]
-  (loop [meal-count 10
-         created-objects #{}]
-    (let [meal-coords (generate-object-coordinates board-size)
-          can-place-meal? (not (contains? created-objects meal-coords))]
+(defn- do-generate-board-objects [board-size objects-count created-objects]
+  (loop [count objects-count
+         objects #{}]
+    (let [object-coordinates (generate-object-coordinates board-size)
+          can-place-object? (and (not (contains? objects object-coordinates))
+                                 (not (contains? created-objects object-coordinates)))]
       (cond
-        (= 0 meal-count) created-objects
-        can-place-meal? (recur (dec meal-count) (into created-objects [meal-coords]))
-        :else (recur meal-count created-objects)))))
+        (= 0 count) objects
+        can-place-object? (recur (dec count) (into objects [object-coordinates]))
+        :else (recur count objects)))))
+
+(defn generate-board-objects
+  ([board-size objects-count]
+   (do-generate-board-objects board-size objects-count #{}))
+  ([board-size objects-count created-objects]
+   (do-generate-board-objects board-size objects-count created-objects)))
 
 (defn move-snake-head-to [[x y] direction]
   (case direction
@@ -55,20 +62,20 @@
 
 (defn meal-under-snake-head [state meal-coordinates]
   (let [[head & _] (@state :body-coordinates)]
-    (some #(when (= head %) %) @meal-coordinates)))
+    (some #(when (= head %) %) meal-coordinates)))
 
-(defn snake-eat-meal [snake-state meal meal-coordinates board-size]
+(defn snake-eat-meal [snake-state meal game-state board-size]
   (let [direction (@snake-state :direction)]
     (swap! snake-state update :body-coordinates snake-grow-to direction board-size)
-    (swap! meal-coordinates disj meal)))
+    (swap! game-state update-in [:meal-coordinates] disj meal)))
 
-(defn update-snake-state [state objects-coordinates board-size]
+(defn update-snake-state [state game-state board-size]
   (fn []
-    (let [meal (meal-under-snake-head state objects-coordinates)]
+    (let [meal-coordinates (@game-state :meal-coordinates)
+          meal (meal-under-snake-head state meal-coordinates)]
       (if meal
-        (snake-eat-meal state meal objects-coordinates board-size)
-        (snake-move state board-size)
-        ))))
+        (snake-eat-meal state meal game-state board-size)
+        (snake-move state board-size)))))
 
 (defn handle-keydown [snake-state]
   (fn [event]
@@ -77,25 +84,36 @@
       (when direction
         (swap! snake-state assoc :direction direction)))))
 
-(defn board-component [size]
+(defn- cell-color [x y snake-coordinates meal-coordinates obstacles-coordinates]
+  (cond
+    (some #(= % [x y]) snake-coordinates) "black"
+    (contains? meal-coordinates [x y]) "green"
+    (contains? obstacles-coordinates [x y]) "red"
+    :else "white"))
+
+(defn board-component [size game-level]
   (let [snake-state (r/atom {:direction :right
                              :body-coordinates [[2 4] [2 3] [1 3] [0 3]]})
-        board-objects-coordinates (r/atom (generate-board-objects size))]
-    (js/setInterval (update-snake-state snake-state board-objects-coordinates size) 1000)
+        meal-count (/ (/ size 2) game-level)
+        obstacles-count (* (/ size 2) game-level)
+        meal-coordinates (generate-board-objects size meal-count)
+        obstacles-coordinates (generate-board-objects size obstacles-count meal-coordinates)
+        game-state (r/atom {:level game-level
+                            :meal-coordinates meal-coordinates
+                            :obstacles-coordinates obstacles-coordinates})]
+    (js/setInterval (update-snake-state snake-state game-state size) 1000)
     (js/document.addEventListener "keydown" (handle-keydown snake-state))
     (fn []
       [:div.board {:class (str "board-" size)}
        (doall (for [y (range size)
                     x (range size)
-                    :let [snake-cell? (snake-occupied? snake-state x y)
-                          object-cell? (contains? @board-objects-coordinates [x y])
-                          cell-color (cond
-                                       snake-cell? "black"
-                                       object-cell? "green"
-                                       :else "white")]]
+                    snake-coordinates (@snake-state :body-coordinates)
+                    meal-coordinates (@game-state :meal-coordinates)
+                    obstacles-coordinates (@game-state :obstacles-coordinates)
+                    :let [cell-color (cell-color x y snake-coordinates meal-coordinates obstacles-coordinates)]]
                 ^{:key [x y]} [cell cell-color]))])))
 
 (defn board-20-component []
-  (board-component 20))
+  (board-component 20 1))
 
 (r/render [board-20-component] (js/document.getElementById "app"))
