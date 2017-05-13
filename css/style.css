@@ -10,6 +10,21 @@ h1 {
     float: left;
 }
 
+.snake {
+    background-color: black;
+}
+
+.meal {
+    background-color: green;
+}
+
+.obstacle {
+    background-color: red;
+}
+
+.free-space {
+}
+
 .board {
     border: 1px solid black;
     margin: auto;
@@ -28,4 +43,10 @@ h1 {
 .board-40 {
     width: 640px;
     height: 640px;
+}
+
+.summary {
+    float: left;
+    margin-left: 25%;
+    font-size: 16pt;
 }
