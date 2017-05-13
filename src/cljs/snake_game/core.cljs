@@ -3,6 +3,9 @@
 
 (enable-console-print!)
 
+(def board-size 40)
+(def game-level 2)
+
 (def keycode->direction-map {37 :left
                              38 :up
                              39 :right
@@ -70,7 +73,6 @@
     (swap! game-state update :snake-coordinates snake-grow-to snake-direction board-size)
     (swap! game-state update-in [:meal-coordinates] disj meal)))
 
-(declare board-component)
 (declare rerender)
 
 (defn update-game-state []
@@ -81,7 +83,7 @@
     (cond
       meal (snake-eat-meal meal)
       (or obstacle snake-collide?) (do (js/alert "You've lost :(")
-                                       (rerender board-component))
+                                       (rerender game-level board-size))
       :else (snake-move))))
 
 (defn handle-keydown [event]
@@ -99,7 +101,7 @@
     (swap! game-state merge defaults)))
 
 (defn init-game! [board-size game-level]
-  (let [update-game-state-interval-new (js/setInterval update-game-state (/ 500 (* game-level 0.65)))
+  (let [update-game-state-interval-new (js/setInterval update-game-state (/ 500 (* game-level 0.6)))
         keydown-listener-new (js/document.addEventListener "keydown" handle-keydown)
         {:keys [update-game-state-interval keydown-listener]} @game-state]
     (when update-game-state-interval (js/clearInterval update-game-state-interval))
@@ -111,34 +113,45 @@
                        :snake-direction :right
                        :snake-coordinates [[2 4] [2 3] [1 3] [0 3]]})))
 
-(defn cell [color]
-  [:div.board-cell {:style {:backgroundColor color}}])
+(defn cell [type]
+  [:div.board-cell {:class type}])
 
-(defn- cell-color [x y snake-coordinates meal-coordinates obstacles-coordinates]
-  (cond
-    (some #(= % [x y]) snake-coordinates) "black"
-    (contains? meal-coordinates [x y]) "green"
-    (contains? obstacles-coordinates [x y]) "red"
-    :else "white"))
+(defn- type-of-cell [x y]
+  (let [{:keys [snake-coordinates meal-coordinates obstacles-coordinates]} @game-state]
+    (cond
+      (some #(= % [x y]) snake-coordinates) :snake
+      (contains? meal-coordinates [x y]) :meal
+      (contains? obstacles-coordinates [x y]) :obstacle
+      :else :free-space)))
+
+(defn summary-component []
+  (let [{:keys [game-level snake-coordinates meal-coordinates]} @game-state]
+    [:div.summary
+     [:p (str "Level: " game-level)]
+     [:p (str "Snake size: " (count snake-coordinates))]
+     [:p (str "Meal: " (count meal-coordinates))]]))
 
 (defn board-component [size]
-  (let []
-    (init-game! size 1)
-    (fn []
-      [:div.board {:class (str "board-" size)}
-       (doall (for [y (range size)
-                    x (range size)
-                    :let [{:keys [snake-coordinates meal-coordinates obstacles-coordinates]} @game-state
-                          cell-color (cell-color x y snake-coordinates meal-coordinates obstacles-coordinates)]]
-                ^{:key [x y]} [cell cell-color]))])))
+  [:div
+   [:div.board {:class (str "board-" size)}
+    (doall (for [y (range size)
+                 x (range size)]
+             ^{:key [x y]} [cell (type-of-cell x y)]))]])
 
-(defn render [board-component-fn]
+(defn game-component [game-level board-size]
+  (init-game! board-size game-level)
+  (fn []
+    [:div
+     [summary-component]
+     [board-component board-size]]))
+
+(defn render [game-level board-size]
   (r/render
-   [board-component-fn 20]
+   [game-component game-level board-size]
    (js/document.getElementById "app")))
 
-(defn rerender [board-component-fn]
+(defn rerender [size]
   (r/unmount-component-at-node (js/document.getElementById "app"))
-  (render board-component-fn))
+  (render game-level board-size))
 
-(render board-component)
+(render game-level board-size)
